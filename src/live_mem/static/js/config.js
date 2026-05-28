@@ -20,7 +20,19 @@ const CATEGORY_ICONS = {
     question:'❓',progress:'📈',issue:'⚠️',
 };
 
-// État global — 1 seul espace à la fois
+// Sentinel value identifying the "All spaces" aggregate view in the
+// dropdown and the `?space=` query string. Chosen to never collide with
+// a real space_id (validation forbids `_`-bracketed names at creation).
+const ALL_SPACES = '__all__';
+
+// Distinct palette for per-space chips in All-mode (kept separate from
+// agent colors so a note's two badges never blur into one another).
+const SPACE_COLORS = [
+    '#16a085','#d35400','#27ae60','#8e44ad','#2c3e50',
+    '#c0392b','#f39c12','#2980b9','#e67e22','#7f8c8d'
+];
+
+// État global — 1 espace courant OU mode "All spaces" agrégé
 const app = {
     spaceId: null,
     info: null,
@@ -28,10 +40,16 @@ const app = {
     bankFiles: [],
     currentBankFile: null,
     agentColors: {},
+    spaceColors: {},
     refreshTimer: null,
     refreshInterval: 5,
     _noteHash: '',
     _bankHash: '',
+    // All-mode state — populated by refreshAll()
+    allMode: false,
+    allSpaces: [],          // [{space_id, description, ...}, ...]
+    allInfos: {},           // space_id → info payload
+    allDigests: {},         // space_id → activeContext snippet (string)
 };
 
 function getAgentColor(name) {
@@ -39,6 +57,12 @@ function getAgentColor(name) {
         app.agentColors[name] = AGENT_COLORS[Object.keys(app.agentColors).length % AGENT_COLORS.length];
     }
     return app.agentColors[name];
+}
+function getSpaceColor(name) {
+    if (!app.spaceColors[name]) {
+        app.spaceColors[name] = SPACE_COLORS[Object.keys(app.spaceColors).length % SPACE_COLORS.length];
+    }
+    return app.spaceColors[name];
 }
 function getCatStyle(c) { return CATEGORY_COLORS[c] || {bg:'rgba(255,255,255,0.1)',border:'#666',text:'#888'}; }
 function getCatIcon(c) { return CATEGORY_ICONS[c] || '📝'; }

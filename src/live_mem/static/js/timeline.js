@@ -55,10 +55,19 @@ function noteCard(n) {
     const ci = getCatIcon(n.category);
     const t = fmtTime(n.timestamp);
     const body = md(n.content);
+    // In All-mode every note carries its space_id — render a virtual
+    // "space" chip so the merged timeline stays attributable.
+    const spaceChip = (app.allMode && n._space)
+        ? (() => {
+            const sc = getSpaceColor(n._space);
+            return `<span class="note-space" style="background:${sc}22;color:${sc};border:1px solid ${sc}66">🗂️ ${esc(n._space)}</span>`;
+        })()
+        : '';
 
     return `<div class="note-card" style="border-left-color:${col}">
         <div class="note-header">
             <span class="note-time">${t}</span>
+            ${spaceChip}
             ${n.agent ? `<span class="note-agent" style="background:${col}">${esc(n.agent)}</span>` : ''}
             ${n.category ? `<span class="note-cat" style="background:${cs.bg};color:${cs.text};border:1px solid ${cs.border}">${ci} ${n.category}</span>` : ''}
         </div>

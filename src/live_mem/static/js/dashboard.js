@@ -4,6 +4,7 @@
 
 function renderDashboard() {
     const el = document.getElementById('dashboardContent');
+    if (app.allMode) return renderDashboardAll(el);
     const info = app.info;
     if (!info) { el.innerHTML = '<div class="empty-state">Loading…</div>'; return; }
 
@@ -86,4 +87,87 @@ function renderDashboard() {
     }
 
     el.innerHTML = h;
+}
+
+// ═══════════════ ALL-SPACES OVERVIEW ═══════════════
+// Cross-space dashboard: totals + global top agents/categories + a
+// clickable per-space mini-list that jumps back into single-space mode.
+function renderDashboardAll(el) {
+    const spaces = app.allSpaces || [];
+    const notes = app.notes || [];
+    const sumLive = spaces.reduce((a,s) => a + (s.info?.live?.total_size || 0), 0);
+    const sumBank = spaces.reduce((a,s) => a + (s.info?.bank?.total_size || 0), 0);
+    const sumBankFiles = spaces.reduce((a,s) => a + (s.info?.bank?.file_count || 0), 0);
+    const sumConsolidations = spaces.reduce((a,s) => a + (s.info?.consolidation_count || 0), 0);
+
+    let h = '';
+
+    h += `<div class="dash-section">
+        <div class="dash-section-title">⊕ All spaces</div>
+        <div class="dash-row"><span>Spaces</span><span class="val">${spaces.length}</span></div>
+        <div class="dash-row"><span>Live notes</span><span class="val">${notes.length}</span></div>
+        <div class="dash-row"><span>Bank files</span><span class="val">${sumBankFiles}</span></div>
+        <div class="dash-row"><span>Consolidations</span><span class="val">${sumConsolidations}</span></div>
+        <div class="dash-row"><span>Live size</span><span class="val">${fmtSize(sumLive)}</span></div>
+        <div class="dash-row"><span>Bank size</span><span class="val">${fmtSize(sumBank)}</span></div>
+    </div>`;
+
+    // Global top agents (across all spaces).
+    const ac = {};
+    notes.forEach(n => { if(n.agent) ac[n.agent]=(ac[n.agent]||0)+1; });
+    const agents = Object.entries(ac).sort((a,b)=>b[1]-a[1]);
+    h += `<div class="dash-section">
+        <div class="dash-section-title">👥 Top agents (${agents.length})</div>
+        <div class="dash-agents">
+            ${agents.slice(0,12).map(([n,c])=>{
+                const col=getAgentColor(n);
+                return `<span class="dash-agent-badge" style="background:${col}22;border-color:${col}55;color:${col}">● ${esc(n)} (${c})</span>`;
+            }).join('')}
+            ${agents.length===0?'<span style="color:#555;font-size:0.7rem">—</span>':''}
+        </div>
+    </div>`;
+
+    // Global categories.
+    const cc = {};
+    notes.forEach(n => { if(n.category) cc[n.category]=(cc[n.category]||0)+1; });
+    const cats = Object.entries(cc).sort((a,b)=>b[1]-a[1]);
+    h += `<div class="dash-section">
+        <div class="dash-section-title">🏷️ Categories</div>
+        ${cats.map(([c,cnt])=>{
+            const s=getCatStyle(c); const pct=notes.length?Math.round(cnt/notes.length*100):0;
+            return `<div class="dash-row"><span>${getCatIcon(c)} ${c}</span><span class="val" style="color:${s.text}">${cnt} (${pct}%)</span></div>`;
+        }).join('')}
+        ${cats.length===0?'<div style="color:#555;font-size:0.7rem;padding:0.1rem">—</div>':''}
+    </div>`;
+
+    // Per-space mini-list — clickable rows jump back to single-space view.
+    h += `<div class="dash-section">
+        <div class="dash-section-title">🗂️ Per space</div>
+        ${spaces.map(s => {
+            const col = getSpaceColor(s.space_id);
+            const last = s.last_consolidation
+                ? fmtDate(s.last_consolidation)
+                : '<span style="color:#777">never</span>';
+            return `<div class="dash-row dash-space-row" data-space="${esc(s.space_id)}" title="Open ${esc(s.space_id)}" style="cursor:pointer">
+                <span style="color:${col}">● ${esc(s.space_id)}</span>
+                <span class="val">${s.note_count} · ${last}</span>
+            </div>`;
+        }).join('')}
+        ${spaces.length===0?'<div style="color:#555;font-size:0.7rem">—</div>':''}
+    </div>`;
+
+    el.innerHTML = h;
+
+    // Wire per-space click → switch dropdown + URL + load.
+    el.querySelectorAll('.dash-space-row').forEach(row => {
+        row.addEventListener('click', () => {
+            const sid = row.dataset.space;
+            const sel = document.getElementById('spaceSelect');
+            if ([...sel.options].some(o => o.value === sid)) {
+                sel.value = sid;
+                setSpaceInUrl(sid);
+                loadSpace(sid);
+            }
+        });
+    });
 }

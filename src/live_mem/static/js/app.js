@@ -118,6 +118,14 @@ function applySpaceFromUrl() {
 function fillSpaceSelect(spaces) {
     const sel = document.getElementById('spaceSelect');
     sel.innerHTML = '<option value="">-- Space --</option>';
+    // "All spaces" aggregate option — visible only when ≥ 2 spaces, since
+    // aggregating a single space is just the single-space view with extra steps.
+    if (spaces.length >= 2) {
+        const allOpt = document.createElement('option');
+        allOpt.value = ALL_SPACES;
+        allOpt.textContent = `⊕ All spaces (${spaces.length})`;
+        sel.appendChild(allOpt);
+    }
     // Issue #8: native <option> elements don't support text-overflow:ellipsis,
     // so we truncate descriptions in JS to prevent the dropdown from overflowing.
     const MAX_DESC = 70;
@@ -142,14 +150,17 @@ function fillSpaceSelect(spaces) {
 async function loadSpace(spaceId) {
     if (!spaceId) {
         app.spaceId = null;
+        app.allMode = false;
         document.getElementById('panelLeft').style.display = 'none';
         document.getElementById('panelRight').style.display = 'none';
         document.getElementById('placeholder').style.display = 'flex';
+        setAllModeDom(false);
         // Don't stop refresh — keep refreshing space list even without selection
         return;
     }
 
     app.spaceId = spaceId;
+    app.allMode = (spaceId === ALL_SPACES);
     app.currentBankFile = null;
     app._noteHash = '';
     app._bankHash = '';
@@ -157,10 +168,28 @@ async function loadSpace(spaceId) {
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('panelLeft').style.display = 'flex';
     document.getElementById('panelRight').style.display = 'flex';
+    setAllModeDom(app.allMode);
 
     // Chargement initial complet
     await refresh(true);
     startRefresh();
+}
+
+// Toggle DOM affordances that differ between single-space and all-mode:
+// hide the bank tab strip + its count (digest replaces tabs entirely).
+function setAllModeDom(allMode) {
+    const tabs = document.getElementById('bankTabs');
+    const count = document.getElementById('bankCount');
+    const title = document.querySelector('#bankPanel .panel-title');
+    if (tabs) tabs.style.display = allMode ? 'none' : '';
+    if (count) count.style.display = allMode ? 'none' : '';
+    if (title) {
+        // Keep the existing count span intact; only swap the label prefix.
+        const countHtml = count ? count.outerHTML : '';
+        title.innerHTML = allMode
+            ? `🗂️ Cross-space digest`
+            : `📘 Bank ${countHtml}`;
+    }
 }
 
 // ═══════════════ REFRESH INTELLIGENT ═══════════════
@@ -186,6 +215,11 @@ async function refresh(force = false) {
     await refreshHealthStatus();
 
     if (!app.spaceId) return;
+
+    if (app.allMode) {
+        await refreshAll(force);
+        return;
+    }
 
     try {
         const [notesR, bankR, infoR] = await Promise.all([
@@ -230,6 +264,112 @@ async function refresh(force = false) {
             updateStatus('error');
         }
     }
+}
+
+// ═══════════════ ALL-SPACES AGGREGATE ═══════════════
+// Client-side fan-out: pull notes + info + activeContext.md for every
+// readable space in parallel, merge into a single timeline, build a
+// cross-space dashboard, and stack a one-paragraph digest per space.
+// No backend changes — scales fine to ~50 spaces; beyond that, consider
+// a dedicated /api/all/* endpoint.
+
+async function refreshAll(force = false) {
+    const sel = document.getElementById('spaceSelect');
+    const spaceIds = [...sel.options]
+        .map(o => o.value)
+        .filter(v => v && v !== ALL_SPACES);
+
+    if (spaceIds.length === 0) {
+        app.notes = []; app.bankFiles = []; app.info = null;
+        renderLive(); renderDashboard(); renderDigest();
+        return;
+    }
+
+    try {
+        const results = await Promise.all(spaceIds.map(async sid => {
+            const [notesR, infoR, ctxR] = await Promise.all([
+                apiLoadNotes(sid).catch(() => ({status:'error'})),
+                apiLoadSpaceInfo(sid).catch(() => ({status:'error'})),
+                // activeContext.md may not exist yet for a never-consolidated
+                // space — best-effort, missing file just produces an empty digest.
+                apiLoadBankFile(sid, 'activeContext.md').catch(() => ({status:'error'})),
+            ]);
+            return { sid, notesR, infoR, ctxR };
+        }));
+
+        // Merge notes with per-note _space tag for the badge renderer.
+        const merged = [];
+        const infos = {};
+        const digests = {};
+        for (const { sid, notesR, infoR, ctxR } of results) {
+            if (notesR.status === 'ok' && Array.isArray(notesR.notes)) {
+                for (const n of notesR.notes) merged.push({ ...n, _space: sid });
+            }
+            if (infoR.status === 'ok') infos[sid] = infoR;
+            if (ctxR.status === 'ok' && ctxR.content) {
+                digests[sid] = extractFirstParagraph(ctxR.content);
+            } else {
+                digests[sid] = '';
+            }
+        }
+
+        // Hash-diff against last refresh (same trick as single-space refresh).
+        const noteHash = merged.length + ':' + (merged[0]?.timestamp || '') + ':' + spaceIds.length;
+        const notesChanged = noteHash !== app._noteHash;
+        const digestHash = Object.entries(digests).map(([k,v]) => k+':'+v.length).join('|');
+        const digestChanged = digestHash !== app._bankHash;
+
+        if (notesChanged || force) {
+            // Re-sort merged notes by timestamp descending (each space's
+            // notes were already sorted, but we need a global order).
+            merged.sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
+            app.notes = merged;
+            app._noteHash = noteHash;
+        }
+        app.allSpaces = spaceIds.map(sid => ({
+            space_id: sid,
+            description: (infos[sid]?.description || ''),
+            note_count: merged.filter(n => n._space === sid).length,
+            last_consolidation: infos[sid]?.last_consolidation || null,
+            info: infos[sid] || null,
+        }));
+        app.allInfos = infos;
+        if (digestChanged || force) {
+            app.allDigests = digests;
+            app._bankHash = digestHash;
+        }
+
+        // Always re-render — cheap, and stats depend on the merged set.
+        renderLive();
+        renderDashboard();
+        if (digestChanged || force) renderDigest();
+
+        updateStatus('ok');
+    } catch (e) {
+        if (e.message !== 'Unauthorized') {
+            console.error('refreshAll:', e);
+            updateStatus('error');
+        }
+    }
+}
+
+// Take the first non-heading paragraph of a markdown document. Used to
+// build the cross-space digest from each space's activeContext.md.
+function extractFirstParagraph(md) {
+    if (!md) return '';
+    const lines = md.split('\n');
+    const buf = [];
+    let started = false;
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) { if (started) break; continue; }
+        if (line.startsWith('#')) continue;  // skip headings
+        started = true;
+        buf.push(line);
+        if (buf.join(' ').length > 400) break;
+    }
+    const out = buf.join(' ');
+    return out.length > 500 ? out.slice(0, 500).trimEnd() + '…' : out;
 }
 
 async function refreshHealthStatus() {

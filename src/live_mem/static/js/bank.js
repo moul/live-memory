@@ -3,6 +3,7 @@
  */
 
 function renderBankTabs() {
+    if (app.allMode) return;  // digest replaces the bank tab strip in All mode
     const tabsEl = document.getElementById('bankTabs');
     const countEl = document.getElementById('bankCount');
     const files = app.bankFiles;
@@ -63,4 +64,51 @@ async function selectBank(filename) {
             el.innerHTML = `<div class="empty-state">❌ ${esc(e.message)}</div>`;
         }
     }
+}
+
+// ═══════════════ DIGEST (All-mode) ═══════════════
+// Replaces the bank tab strip + content view with a stack of cards,
+// one per space, showing the first paragraph of its activeContext.md.
+// Card header is clickable → jump back to the space's single view.
+function renderDigest() {
+    if (!app.allMode) return;
+    const el = document.getElementById('bankContent');
+    const spaces = app.allSpaces || [];
+    const digests = app.allDigests || {};
+
+    if (spaces.length === 0) {
+        el.innerHTML = '<div class="empty-state">No spaces to aggregate</div>';
+        return;
+    }
+
+    const cards = spaces.map(s => {
+        const sid = s.space_id;
+        const col = getSpaceColor(sid);
+        const desc = s.description ? esc(s.description) : '';
+        const snippet = digests[sid]
+            ? md(digests[sid])
+            : '<span style="color:#777;font-size:0.75rem">No activeContext.md yet — never consolidated.</span>';
+        return `<div class="digest-card" style="border-left-color:${col}">
+            <div class="digest-header" data-space="${esc(sid)}" title="Open ${esc(sid)}">
+                <span class="digest-space" style="color:${col}">🗂️ ${esc(sid)}</span>
+                ${desc ? `<span class="digest-desc">${desc}</span>` : ''}
+                <span class="digest-count">${s.note_count} live</span>
+            </div>
+            <div class="digest-body">${snippet}</div>
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `<div class="digest-list">${cards}</div>`;
+
+    el.querySelectorAll('.digest-header').forEach(h => {
+        h.addEventListener('click', () => {
+            const sid = h.dataset.space;
+            const sel = document.getElementById('spaceSelect');
+            if ([...sel.options].some(o => o.value === sid)) {
+                sel.value = sid;
+                setSpaceInUrl(sid);
+                loadSpace(sid);
+            }
+        });
+    });
 }

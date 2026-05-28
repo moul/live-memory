@@ -5,6 +5,61 @@ Based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.6.0] — 2026-05-28
+
+### Added
+
+- **Web UI `/live` — "All spaces" aggregate view.**
+  - A new `⊕ All spaces (N)` option appears at the top of the dropdown
+    when the user can access ≥ 2 spaces. Selecting it switches the page
+    into a cross-space view backed by client-side fan-out (no backend
+    changes).
+  - **Timeline** merges live notes from every accessible space, sorted
+    globally by timestamp. Each note carries a virtual `🗂️ <space_id>`
+    chip alongside the existing agent/category chips so attribution is
+    never lost in the merged stream.
+  - **Dashboard** (left panel) switches to a cross-space overview:
+    totals (space count, live notes, bank files, sizes, consolidations),
+    global top agents and categories, and a clickable per-space list
+    showing note count + last-consolidation timestamp. Clicking a row
+    jumps back into that space's single-space view.
+  - **Bank panel** is replaced by a "Cross-space digest": one card per
+    space showing the first paragraph of its `activeContext.md`.
+    Clicking the card header opens that space.
+  - The selection is URL-persisted as `?space=__all__`, so reload,
+    new-tab, and shared-link flows preserve the aggregate view.
+
+### Changed
+
+- `src/live_mem/static/js/config.js` — new `ALL_SPACES` sentinel,
+  `SPACE_COLORS` palette, `getSpaceColor()`, and `app.allMode/allSpaces/
+  allInfos/allDigests` state slots.
+- `src/live_mem/static/js/app.js` — `loadSpace()` branches on the
+  sentinel; new `refreshAll()` fans out `apiLoadNotes` + `apiLoadSpaceInfo`
+  + `apiLoadBankFile(activeContext.md)` in parallel across every space,
+  hash-diffs the merged set, and refreshes timeline/dashboard/digest in
+  place. Single-space refresh path is untouched.
+- `src/live_mem/static/js/timeline.js` — `noteCard` adds the space chip
+  when `app.allMode && n._space`.
+- `src/live_mem/static/js/dashboard.js` — new `renderDashboardAll()`
+  branch; single-space dashboard untouched.
+- `src/live_mem/static/js/bank.js` — `renderBankTabs()` early-returns in
+  All-mode; new `renderDigest()` renders the per-space activeContext
+  snippets.
+- `src/live_mem/static/css/live.css` — adds `.note-space`, `.digest-*`
+  rules and a hover affordance for clickable per-space rows.
+
+### Notes
+
+- Fan-out is client-side: one round-trip per space per refresh. Fine
+  for typical operator usage (< 50 spaces). A future server-side
+  `/api/all/*` endpoint could collapse it to a single request if
+  needed.
+- "All spaces" is auto-hidden when only one space is accessible — no
+  point aggregating a singleton.
+
+---
+
 ## [2.5.0] — 2026-05-28
 
 ### Added

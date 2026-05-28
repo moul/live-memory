@@ -232,6 +232,26 @@ button:disabled { background: #444; cursor: not-allowed; }
     padding: 0.04rem 0.35rem; border-radius: 3px;
     font-size: 0.56rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
 }
+.note-space {
+    padding: 0.04rem 0.35rem; border-radius: 8px;
+    font-size: 0.58rem; font-weight: 600;
+}
+.dash-space-row:hover { background: rgba(255,255,255,0.04); border-radius: 3px; }
+.digest-list { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.4rem; }
+.digest-card {
+    border-left: 3px solid #555; background: rgba(255,255,255,0.02);
+    border-radius: 4px; padding: 0.4rem 0.6rem;
+}
+.digest-header {
+    display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+    margin-bottom: 0.3rem;
+}
+.digest-header:hover .digest-space { text-decoration: underline; }
+.digest-space { font-weight: 600; font-size: 0.78rem; }
+.digest-desc { color: #888; font-size: 0.7rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.digest-count { color: #666; font-size: 0.65rem; font-family: 'SF Mono', 'Fira Code', monospace; }
+.digest-body { font-size: 0.74rem; color: #bbb; line-height: 1.45; }
+.digest-body p { margin: 0.15rem 0; }
 .note-body { font-size: 0.76rem; color: #bbb; line-height: 1.45; }
 .note-body p { margin: 0.15rem 0; }
 .note-body code { background: rgba(255,255,255,0.07); padding: 0.05rem 0.2rem; border-radius: 3px; font-size: 0.7rem; }
