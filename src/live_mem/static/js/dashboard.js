@@ -97,7 +97,7 @@ function renderDashboardAll(el) {
     const notes = app.notes || [];
     const sumLive = spaces.reduce((a,s) => a + (s.info?.live?.total_size || 0), 0);
     const sumBank = spaces.reduce((a,s) => a + (s.info?.bank?.total_size || 0), 0);
-    const sumBankFiles = spaces.reduce((a,s) => a + (s.info?.bank?.file_count || 0), 0);
+    const sumBankFiles = spaces.reduce((a,s) => a + (s.info?.bank?.files_count || 0), 0);
     const sumConsolidations = spaces.reduce((a,s) => a + (s.info?.consolidation_count || 0), 0);
 
     let h = '';
