@@ -41,6 +41,7 @@ async function doLogin() {
         hideLogin();
         input.value = '';  // efface le token du DOM dès qu'il n'est plus utile
         fillSpaceSelect(data.spaces || []);
+        applySpaceFromUrl();
         startRefresh();  // start auto-refresh (updates space list even before selection)
     } catch {
         err.textContent = '❌ Server unreachable.';
@@ -52,6 +53,7 @@ async function doLogin() {
 
 async function doLogout() {
     await logout();  // efface le cookie HttpOnly côté serveur
+    setSpaceInUrl('');
     stopRefresh();
     app.spaceId = null; app.info = null; app.notes = []; app.bankFiles = [];
     app.currentBankFile = null; app.agentColors = {};
@@ -71,6 +73,7 @@ async function checkToken() {
         if (r.status === 'ok') {
             hideLogin();
             fillSpaceSelect(r.spaces || []);
+            applySpaceFromUrl();
             startRefresh();  // start auto-refresh on page reload with valid cookie
         } else {
             showLogin();
@@ -81,6 +84,34 @@ async function checkToken() {
             return;
         }
         showLogin('Server unreachable.');
+    }
+}
+
+// ═══════════════ URL STATE ═══════════════
+// Persist the selected space in the `?space=<id>` query string so reloads,
+// new tabs and shared links all land on the same space.
+
+function getSpaceFromUrl() {
+    try { return new URLSearchParams(window.location.search).get('space') || ''; }
+    catch { return ''; }
+}
+
+function setSpaceInUrl(spaceId) {
+    try {
+        const url = new URL(window.location.href);
+        if (spaceId) url.searchParams.set('space', spaceId);
+        else url.searchParams.delete('space');
+        history.replaceState(null, '', url.toString());
+    } catch { /* best-effort */ }
+}
+
+function applySpaceFromUrl() {
+    const sel = document.getElementById('spaceSelect');
+    const wanted = getSpaceFromUrl();
+    if (!wanted) return;
+    if ([...sel.options].some(o => o.value === wanted)) {
+        sel.value = wanted;
+        loadSpace(wanted);
     }
 }
 
@@ -313,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Sélection espace → chargement auto
     document.getElementById('spaceSelect').addEventListener('change', function() {
+        setSpaceInUrl(this.value);
         loadSpace(this.value);
     });
 

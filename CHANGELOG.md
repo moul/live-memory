@@ -5,6 +5,34 @@ Based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.5.0] — 2026-05-28
+
+### Added
+
+- **Web UI `/live` — selected space persisted in URL query string.**
+  - The dropdown selection is now reflected in `?space=<space_id>` on the
+    current page via `history.replaceState` — no extra history entry is
+    pushed per change.
+  - On page load (whether via cookie auto-resume or fresh login), if the
+    URL carries `?space=<id>` **and** the space appears in the user's
+    accessible list, the dropdown is pre-selected and the space is loaded
+    automatically.
+  - Enables: refresh-safe selection, multi-tab workflows (one space per
+    tab), and shareable links between devices/teammates.
+  - Logging out clears the query string so a stale `?space=` does not
+    survive across sessions on the same device.
+  - Unknown / unauthorized space IDs in the URL are silently ignored
+    (dropdown stays on `-- Space --`).
+
+### Changed
+
+- `src/live_mem/static/js/app.js` — `fillSpaceSelect` is now paired with a
+  new `applySpaceFromUrl()` helper called once after the initial space
+  list load in both `doLogin` and `checkToken`. The recurring
+  `refreshSpaceList` still preserves the in-memory selection unchanged.
+
+---
+
 ## [2.4.0] — 2026-05-22
 
 ### Added
