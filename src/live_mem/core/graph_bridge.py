@@ -441,7 +441,10 @@ class GraphBridgeService:
             }
 
         # Connexion à graph-memory
-        gm = GraphMemoryClient(config.url, config.token, timeout=180.0)
+        # NOTE: 600s timeout (was 180s) — bumped 2026-05-28 for large bank
+        # files (people.md, index.md, relationships.md can exceed 180s for LLM
+        # entity extraction). Source: russel homelab, custom personal-crm rules.
+        gm = GraphMemoryClient(config.url, config.token, timeout=600.0)
 
         try:
             # 1. Lister les documents existants dans graph-memory
